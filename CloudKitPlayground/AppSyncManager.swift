@@ -7,7 +7,6 @@ import AppModels
 import Combine
 
 public class AppSyncManager {
-  let appCustomZoneID = CKRecordZone.ID(zoneName: "CloudKitSyncEngineZone", ownerName: CKCurrentUserDefaultName)
   public lazy var engine = CloudKitSyncEngine<Bookmark>(
     defaults: .standard,
     zoneIdentifier: CKRecordZone.ID(zoneName: String(describing: Bookmark.self), ownerName: CKCurrentUserDefaultName),
@@ -20,17 +19,15 @@ public class AppSyncManager {
   public init(store: Store) {
     self.store = store
 
-    engine.modelsUpdated
+    engine.modelsChanged
       .receive(on: DispatchQueue.main)
-      .sink { [weak self] models in
-      self?.store.dispatch(.cloudUpdated(models))
-    }
-    .store(in: &cancellables)
-
-    engine.modelsDeleted
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] identifiers in
-      self?.store.dispatch(.removeBookmarks(identifiers.compactMap(UUID.init(uuidString:))))
+      .sink { [weak self] change in
+        switch change {
+        case let .updated(models):
+          self?.store.dispatch(.cloudUpdated(models))
+        case let .deleted(bookmarkIDs):
+          self?.store.dispatch(.removeBookmarks(bookmarkIDs))
+        }
     }
     .store(in: &cancellables)
   }

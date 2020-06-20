@@ -13,7 +13,6 @@ enum BookmarkKey: String {
 
 extension Bookmark: CloudKitSyncEnginePersistable {
 
-//  public static var customZoneID: CKRecordZone.ID { AppSyncConstants.customZoneID }
   public static var recordType: CKRecord.RecordType { String(describing: Bookmark.self) }
 
   public init(record: CKRecord) throws {

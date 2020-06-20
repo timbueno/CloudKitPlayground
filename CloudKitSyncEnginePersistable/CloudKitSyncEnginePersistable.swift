@@ -1,7 +1,7 @@
 import Foundation
 import CloudKit
 
-public protocol CloudKitSyncEnginePersistable {
+public protocol CloudKitSyncEnginePersistable: Hashable {
   var id: UUID { get }
 
   /// Used to store the encoded `CKRecord.ID` so that local records can be matched with

@@ -2,6 +2,11 @@ import Foundation
 import CloudKit
 import os.log
 
+public enum CheckedAccountStatus: Equatable {
+   case notChecked
+   case checked(CKAccountStatus)
+}
+
 extension CloudKitSyncEngine {
 
    // MARK: - Internal
@@ -25,8 +30,7 @@ extension CloudKitSyncEngine {
       }
 
       DispatchQueue.main.async {
-        self?.accountStatus = status
-        self?.hasSetFetchedAccountStatus = true
+        self?.accountStatus = .checked(status)
       }
     }
   }

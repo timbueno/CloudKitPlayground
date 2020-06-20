@@ -6,10 +6,11 @@ extension CloudKitSyncEngine {
 
   // MARK: - Internal
 
-  func initializeSubscription(with queue: OperationQueue) {
+  func initializeSubscription(with queue: OperationQueue) -> Bool {
     self.createPrivateSubscriptionsIfNeeded()
     queue.waitUntilAllOperationsAreFinished()
-    guard self.createdPrivateSubscription else { return }
+    guard self.createdPrivateSubscription else { return false }
+    return true
   }
 
   // MARK: - Private
@@ -83,7 +84,7 @@ extension CloudKitSyncEngine {
             self.createPrivateSubscriptionsIfNeeded()
           }
         }
-      } else if ids == nil || ids?.count == 0 {
+      } else if ids?.isEmpty ?? true {
         os_log("Private subscription reported as existing, but it doesn't exist. Creating.", log: self.log, type: .error)
 
         self.workQueue.async {

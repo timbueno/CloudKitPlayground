@@ -108,16 +108,16 @@ extension CloudKitSyncEngine {
   }
 
   private func emitUpdatedModelsAfterUpload(with records: [CKRecord]) {
-    let models: [Persistable] = records.compactMap { r in
+    let models: Set<Persistable> = Set(records.compactMap { r in
       guard var model = uploadBuffer.first(where: { $0.id.uuidString == r.recordID.recordName }) else { return nil }
 
       model.ckData = r.encodedSystemFields
 
       return model
-    }
+    })
 
     workQueue.async {
-      self.modelsUpdatedSubject.send(models)
+      self.modelsChangedSubject.send(.updated(models))
       self.uploadBuffer = []
     }
   }

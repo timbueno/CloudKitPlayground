@@ -3,7 +3,7 @@ import AppModels
 
 public enum AppAction {
   case addBookmark(URL)
-  case removeBookmarks([UUID])
-  case cloudUpdated([Bookmark])
+  case removeBookmarks(Set<UUID>)
+  case cloudUpdated(Set<Bookmark>)
   case fetchChanges
 }

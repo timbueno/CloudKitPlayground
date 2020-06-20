@@ -6,21 +6,23 @@ import os.log
 
 public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable> {
 
+  public enum ModelChange {
+    case deleted(Set<UUID>)
+    case updated(Set<Persistable>)
+  }
+
   // MARK: - Public Properties
 
-  /// Called after models are updated with CloudKit data. No thread guarantees.
-  public private(set) lazy var modelsUpdated = modelsUpdatedSubject.eraseToAnyPublisher()
-
-  /// Called when models are deleted remotely. No thread guarantees.
-  public private(set) lazy var modelsDeleted = modelsDeletedSubject.eraseToAnyPublisher()
+  /// Called when models are updated or deleted remotely. No thread guarantees.
+  public private(set) lazy var modelsChanged = modelsChangedSubject.eraseToAnyPublisher()
 
   /// Called when the user's iCloud account status changes.
-  @Published public internal(set) var accountStatus: CKAccountStatus = .couldNotDetermine {
+  @Published public internal(set) var accountStatus: CheckedAccountStatus = .notChecked {
     willSet {
       // Force a sync if the user account status changes to available while the app is running
-      if accountStatus != .available
-        && hasSetFetchedAccountStatus
-        && newValue == .available {
+      if case let .checked(status) = newValue,
+        status == .available,
+        accountStatus != CheckedAccountStatus.notChecked {
         forceSync()
       }
     }
@@ -28,8 +30,8 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
 
   // MARK: - Internal Properties
 
-  let log = OSLog(
-    subsystem: "com.jayhickey.CloudKitSync",
+  lazy var log = OSLog(
+    subsystem: "com.jayhickey.CloudKitSync.\(zoneIdentifier.zoneName)",
     category: String(describing: CloudKitSyncEngine.self)
   )
 
@@ -52,9 +54,7 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
 
   var uploadBuffer: [Persistable]
   var cancellables = Set<AnyCancellable>()
-  let modelsUpdatedSubject = PassthroughSubject<[Persistable], Never>()
-  let modelsDeletedSubject = PassthroughSubject<[String], Never>()
-  var hasSetFetchedAccountStatus = false
+  let modelsChangedSubject = PassthroughSubject<ModelChange, Never>()
 
   lazy var cloudOperationQueue: OperationQueue = {
     let queue = OperationQueue()
@@ -70,6 +70,10 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
   ///   - defaults: The `UserDefaults` used to store sync state information
   ///   - zoneIdentifier: An identifier that will be used to create a custom private zone for the CloudKit data
   ///   - initialItems: An initial array of items to sync
+  ///
+  /// `initialItems` is used to perform a sync of any local models that don't yet exist in CloudKit. The engine uses the
+  /// presence of data in `ckData` to determine what models to upload. Alternatively, you can do this yourself and page items
+  /// into `upload(_:)` instead.
   public init(defaults: UserDefaults, zoneIdentifier: CKRecordZone.ID, initialItems: [Persistable]) {
     self.defaults = defaults
     self.recordType = String(describing: Persistable.self)
@@ -99,6 +103,7 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
   }
 
 
+  // Uploads a CloudKitSyncEnginePersistable to iCloud
   public func upload(_ item: Persistable) {
     os_log("%{public}@", log: log, type: .debug, #function)
 
@@ -108,6 +113,7 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
     }
   }
 
+  // Deletes a CloudKitSyncEnginePersistable from iCloud
   public func delete(_ item: Persistable) {
     os_log("%{public}@", log: log, type: .debug, #function)
 
@@ -147,11 +153,17 @@ public final class CloudKitSyncEngine<Persistable: CloudKitSyncEnginePersistable
     workQueue.async { [weak self] in
       guard let self = self else { return }
 
-      // Initialize CloudKit with private custom zone
-      self.initializeZone(with: self.cloudOperationQueue)
+      // Initialize CloudKit with private custom zone, but bail early if we fail
+      guard self.initializeZone(with: self.cloudOperationQueue) else {
+        os_log("Unable to initialize zone, bailing from setup early", log: self.log, type: .error)
+        return
+      }
 
-      // Subscribe to CloudKit changes
-      self.initializeSubscription(with: self.cloudOperationQueue)
+      // Subscribe to CloudKit changes, but bail early if we fail
+      guard self.initializeSubscription(with: self.cloudOperationQueue) else {
+        os_log("Unable to initialize subscription to changes, bailing from setup early", log: self.log, type: .error)
+        return
+      }
 
       os_log("Cloud environment preparation done", log: self.log, type: .debug)
 

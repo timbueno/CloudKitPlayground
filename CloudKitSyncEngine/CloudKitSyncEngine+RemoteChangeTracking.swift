@@ -27,16 +27,26 @@ extension CloudKitSyncEngine {
     operation.recordZoneIDs = [zoneIdentifier]
     operation.fetchAllChanges = true
 
+    // Called if the record zone fetch was not fully completed
     operation.recordZoneChangeTokensUpdatedBlock = { [weak self] _, changeToken, _ in
       guard let self = self else { return }
 
       guard let changeToken = changeToken else { return }
 
+      // The fetch may have failed halfway through, so we need to save the change token,
+      // emit the current records, and then clear the arrays so we can re-request for the
+      // rest of the data.
       self.workQueue.async {
+        os_log("Commiting new change token and emitting changes", log: self.log, type: .debug)
+
         self.privateChangeToken = changeToken
+        self.emitServerChanges(with: changedRecords, deletedRecordIDs: deletedRecordIDs)
+        changedRecords = []
+        deletedRecordIDs = []
       }
     }
 
+    // Called after the record zone fetch completes
     operation.recordZoneFetchCompletionBlock = { [weak self] _, token, _, _, error in
       guard let self = self else { return }
 
@@ -94,6 +104,8 @@ extension CloudKitSyncEngine {
 
         self.workQueue.async {
           self.emitServerChanges(with: changedRecords, deletedRecordIDs: deletedRecordIDs)
+          changedRecords = []
+          deletedRecordIDs = []
         }
       }
     }
@@ -144,18 +156,22 @@ extension CloudKitSyncEngine {
 
     os_log("Will emit %d changed record(s) and %d deleted record(s)", log: log, type: .info, changedRecords.count, deletedRecordIDs.count)
 
-    let models: [Persistable] = changedRecords.compactMap { record in
+    let models: Set<Persistable> = Set(changedRecords.compactMap { record in
       do {
         return try Persistable(record: record)
       } catch {
         os_log("Error decoding item from record: %{public}@", log: self.log, type: .error, String(describing: error))
         return nil
       }
-    }
+    })
 
-    let deletedIdentifiers = deletedRecordIDs.map { $0.recordName }
+    let deletedIdentifiers = Set(
+      deletedRecordIDs
+        .map { $0.recordName }
+        .compactMap(UUID.init(uuidString:))
+    )
 
-    modelsUpdatedSubject.send(models)
-    modelsDeletedSubject.send(deletedIdentifiers)
+    modelsChangedSubject.send(.updated(models))
+    modelsChangedSubject.send(.deleted(deletedIdentifiers))
   }
 }

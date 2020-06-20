@@ -6,10 +6,11 @@ extension CloudKitSyncEngine {
 
   // MARK: - Internal
 
-  func initializeZone(with queue: OperationQueue) {
+  func initializeZone(with queue: OperationQueue) -> Bool {
     self.createCustomZoneIfNeeded()
     queue.waitUntilAllOperationsAreFinished()
-    guard self.createdCustomZone else { return }
+    guard self.createdCustomZone else { return false }
+    return true
   }
 
   // MARK: - Private
@@ -78,7 +79,7 @@ extension CloudKitSyncEngine {
             self.createCustomZoneIfNeeded()
           }
         }
-      } else if ids == nil || ids?.count == 0 {
+      } else if ids?.isEmpty ?? true {
         os_log("Custom zone reported as existing, but it doesn't exist. Creating.", log: self.log, type: .error)
         self.workQueue.async {
           self.createdCustomZone = false

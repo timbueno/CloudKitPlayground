@@ -62,7 +62,12 @@ extension CloudKitSyncEngine {
 
         self.workQueue.async {
           guard let serverRecords = serverRecords else { return }
-          self.modelsDeletedSubject.send(serverRecords.map(\.recordID.recordName))
+          let recordsSet = Set(
+            serverRecords
+              .map(\.recordID.recordName)
+              .compactMap(UUID.init(uuidString:))
+          )
+          self.modelsChangedSubject.send(.deleted(recordsSet))
           self.deleteBuffer = []
         }
       }

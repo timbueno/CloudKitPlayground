@@ -2,6 +2,7 @@ import SwiftUI
 import AppModels
 import CryptoKit
 import CloudKit
+import CloudKitSyncEngine
 
 struct MultipleSelectionRow<Content: View>: View {
   var childView: Content
@@ -52,7 +53,7 @@ struct BookmarkRow: View {
 struct ContentView: View {
   @ObservedObject var store: Store
   var syncManager: AppSyncManager
-  @State private var accountStatus: CKAccountStatus = .couldNotDetermine
+  @State private var accountStatus: CheckedAccountStatus = .notChecked
   @State private var selections: [Bookmark] = []
 
   init(store: Store, syncManager: AppSyncManager) {
@@ -120,7 +121,8 @@ struct ContentView: View {
     }
   }
 
-  func state(for status: CKAccountStatus) -> String {
+  func state(for status: CheckedAccountStatus) -> String {
+    guard case let .checked(status) = status else { return "Not Checked" }
     switch status {
     case .available:
       return "Available"
@@ -143,7 +145,7 @@ struct ContentView: View {
   }
 
   func delete(bookmarks: [Bookmark]) {
-    store.dispatch(.removeBookmarks(bookmarks.map(\.id)))
+    store.dispatch(.removeBookmarks(Set(bookmarks.map(\.id))))
   }
 
   func addBookmark(_ url: URL) {
