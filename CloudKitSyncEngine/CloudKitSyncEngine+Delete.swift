@@ -23,30 +23,30 @@ extension CloudKitSyncEngine {
 
     let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDs)
 
-    operation.perRecordCompletionBlock = { [weak self] record, error in
-      guard let self = self else { return }
+//     operation.perRecordCompletionBlock = { [weak self] record, error in
+//       guard let self = self else { return }
 
-      // We're only interested in conflict errors here
-      guard let error = error, error.isCloudKitConflict else { return }
+//       // We're only interested in conflict errors here
+//       guard let error = error, error.isCloudKitConflict else { return }
 
-      os_log("CloudKit conflict with record of type %{public}@", log: self.log, type: .error, record.recordType)
+//       os_log("CloudKit conflict with record of type %{public}@", log: self.log, type: .error, record.recordType)
 
-      guard let resolvedRecord = error.resolveConflict(with: Persistable.resolveConflict) else {
-        os_log(
-          "Resolving conflict with record of type %{public}@ returned a nil record. Giving up.",
-          log: self.log,
-          type: .error,
-          record.recordType
-        )
-        return
-      }
+//       guard let resolvedRecord = error.resolveConflict(with: Persistable.resolveConflict) else {
+//         os_log(
+//           "Resolving conflict with record of type %{public}@ returned a nil record. Giving up.",
+//           log: self.log,
+//           type: .error,
+//           record.recordType
+//         )
+//         return
+//       }
 
-      os_log("Conflict resolved, will retry upload", log: self.log, type: .info)
+//       os_log("Conflict resolved, will retry upload", log: self.log, type: .info)
 
-      self.workQueue.async {
-        self.deleteRecords([resolvedRecord.recordID])
-      }
-    }
+//       self.workQueue.async {
+//         self.deleteRecords([resolvedRecord.recordID])
+//       }
+//     }
 
     operation.modifyRecordsCompletionBlock = { [weak self] serverRecords, _, error in
       guard let self = self else { return }
